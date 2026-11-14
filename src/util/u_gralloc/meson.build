@@ -17,7 +17,7 @@ files_u_gralloc = files(
   'u_gralloc_qcom.c',
 )
 
-if dep_android_ui.found()
+if dep_android_ui.found() and get_option('platform-sdk-version') >= 31
   files_u_gralloc += files('u_gralloc_imapper5_api.cpp')
   c_args_for_u_gralloc += '-DUSE_IMAPPER4_METADATA_API'
   cpp_args_for_u_gralloc += '-DUSE_IMAPPER4_METADATA_API'
