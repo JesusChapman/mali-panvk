@@ -2,8 +2,10 @@
 # Build the driver for Android (arm64) and package it into dist/.
 #
 # usage: ./build.sh [path-to-android-ndk]
-#   The NDK can also come from ANDROID_NDK_HOME or ANDROID_NDK_ROOT. Linux only (WSL works): the
-#   first stage builds host tools that need LLVM.
+#   The NDK can also come from ANDROID_NDK_HOME or ANDROID_NDK_ROOT. Linux only (WSL works):
+#   the first stage builds host tools that need LLVM. macOS works too with MacPorts (meson,
+#   ninja, glslangValidator, pkg-config, python3 with mako/packaging/pyyaml, and one LLVM
+#   major version: llvm, clang, libclc and spirv-llvm-translator).
 #   BUILD_DIR overrides the Android build directory (default: build-android-$API).
 #   API overrides the Android API level (default: 31). Below 31 is experimental: the gralloc
 #   backend's stubs are generated from Android 12 platform libraries, and old phones are only
@@ -32,7 +34,8 @@ fi
 
 case "$(uname -s)" in
    Linux*) HOST=linux-x86_64 ;;
-   *) echo "error: build on Linux (or WSL); stage 1 needs LLVM" >&2; exit 1 ;;
+   Darwin*) HOST=darwin-x86_64 ;;
+   *) echo "error: build on Linux, WSL or macOS (MacPorts LLVM); stage 1 needs LLVM" >&2; exit 1 ;;
 esac
 
 BIN="$NDK/toolchains/llvm/prebuilt/$HOST/bin"
