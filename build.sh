@@ -55,6 +55,12 @@ done
 # --- stage 1: host tools ----------------------------------------------------------------------
 HOSTB=build-host
 if [ ! -f "$HOSTB/build.ninja" ]; then
+   # The SPIR-V translator's .pc file lives next to LLVM, not on pkg-config's default path
+   # (MacPorts: /opt/local/libexec/llvm-*/lib/pkgconfig).
+   if command -v llvm-config >/dev/null 2>&1; then
+      PKG_CONFIG_PATH="$(llvm-config --libdir)/pkgconfig:${PKG_CONFIG_PATH:-}"
+      export PKG_CONFIG_PATH
+   fi
    meson setup "$HOSTB" \
       -Dbuildtype=debugoptimized \
       -Dmesa-clc=enabled -Dprecomp-compiler=enabled \
