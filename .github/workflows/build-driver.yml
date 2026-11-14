@@ -1,0 +1,63 @@
+name: driver
+# Experimental PanVK builds below the release API level (default: 29 for Android 10 phones):
+# the same build.sh, with API/MIN_API lowered. Linux only (stage 1 needs LLVM); run from the
+# Actions tab or the command line, then download the dist/ artifact and share the zip.
+on:
+  workflow_dispatch:
+    inputs:
+      api:
+        description: Android API level to build for (also the package minApi)
+        type: string
+        default: '29'
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: driver-${{ inputs.api }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      API: ${{ inputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the build tools
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build pkg-config glslang-tools python3-pip \
+            clang-21 llvm-21-dev libclang-21-dev libclc-21-dev libllvmspirvlib-21-dev
+          pip install --break-system-packages --upgrade 'meson>=1.4.0' mako packaging pyyaml
+          for tool in meson ninja python3 pkg-config glslangValidator clang-21; do
+            command -v "$tool" || { echo "missing $tool"; exit 1; }
+          done
+      - name: Install NDK r29
+        run: |
+          curl -sL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          unzip -q /tmp/ndk.zip -d /tmp/ndk
+          test -x /tmp/ndk/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android"$API"-clang
+      - name: Build the driver
+        run: ./build.sh /tmp/ndk/android-ndk-r29
+      - name: Check the package floor
+        run: |
+          python3 - <<'EOF'
+          import glob, json, sys, zipfile
+          zips = glob.glob('dist/*.zip')
+          assert len(zips) == 1, zips
+          with zipfile.ZipFile(zips[0]) as z:
+              meta = json.loads(z.read('meta.json'))
+              names = z.namelist()
+          assert meta['minApi'] == int('${{ inputs.api }}'), meta
+          assert meta['libraryName'] in names, names
+          print('packaged', zips[0], 'minApi', meta['minApi'])
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panvk-api${{ inputs.api }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 90

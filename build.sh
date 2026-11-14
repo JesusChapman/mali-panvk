@@ -1,10 +1,13 @@
 #!/bin/sh
-# Build the driver for Android (arm64, API 31) and package it into dist/.
+# Build the driver for Android (arm64) and package it into dist/.
 #
 # usage: ./build.sh [path-to-android-ndk]
 #   The NDK can also come from ANDROID_NDK_HOME or ANDROID_NDK_ROOT. Linux only (WSL works): the
 #   first stage builds host tools that need LLVM.
-#   BUILD_DIR overrides the Android build directory (default: build-android).
+#   BUILD_DIR overrides the Android build directory (default: build-android-$API).
+#   API overrides the Android API level (default: 31). Below 31 is experimental: the gralloc
+#   backend's stubs are generated from Android 12 platform libraries, and old phones are only
+#   tested when someone with one reports back. MIN_API overrides the meta.json floor.
 #   GRALLOC=0 builds without the libui gralloc backend (see README.md, Gralloc).
 #
 # Two stages:
@@ -33,8 +36,9 @@ case "$(uname -s)" in
 esac
 
 BIN="$NDK/toolchains/llvm/prebuilt/$HOST/bin"
-if [ ! -x "$BIN/aarch64-linux-android31-clang" ]; then
-   echo "error: no API 31 arm64 compiler in $BIN" >&2
+API="${API:-31}"
+if [ ! -x "$BIN/aarch64-linux-android$API-clang" ]; then
+   echo "error: no API $API arm64 compiler in $BIN" >&2
    exit 1
 fi
 
@@ -66,7 +70,7 @@ PATH="$PWD/$HOSTB/bin:$PATH"
 export PATH
 
 # --- stage 2: the driver ----------------------------------------------------------------------
-BUILD="${BUILD_DIR:-build-android}"
+BUILD="${BUILD_DIR:-build-android-$API}"
 mkdir -p "$BUILD" "$BUILD/pkgconfig-empty"
 
 GRALLOC_DEPS=
@@ -76,13 +80,13 @@ if [ "${GRALLOC:-1}" != 0 ]; then
    rm -rf "$GRALLOC_DEPS"
    mkdir -p "$GRALLOC_DEPS"
    cp -r android/gralloc/include android/gralloc/abi_override "$GRALLOC_DEPS/"
-   python3 android/gralloc/mkstubs.py "$BIN/aarch64-linux-android31-clang" "$GRALLOC_DEPS/libs-a12"
+   python3 android/gralloc/mkstubs.py "$BIN/aarch64-linux-android$API-clang" "$GRALLOC_DEPS/libs-a$API"
 fi
 
 cat > "$BUILD/cross.ini" <<EOF
 [binaries]
-c = '$BIN/aarch64-linux-android31-clang'
-cpp = '$BIN/aarch64-linux-android31-clang++'
+c = '$BIN/aarch64-linux-android$API-clang'
+cpp = '$BIN/aarch64-linux-android$API-clang++'
 ar = '$BIN/llvm-ar'
 strip = '$BIN/llvm-strip'
 pkg-config = 'pkg-config'
@@ -102,7 +106,7 @@ EOF
 if [ ! -f "$BUILD/build.ninja" ]; then
    meson setup "$BUILD" --cross-file "$BUILD/cross.ini" \
       -Dbuildtype=debugoptimized -Db_ndebug=true \
-      -Dplatforms=android -Dplatform-sdk-version=31 -Dandroid-stub=true -Dandroid-strict=false \
+      -Dplatforms=android -Dplatform-sdk-version="$API" -Dandroid-stub=true -Dandroid-strict=false \
       -Dandroid-libbacktrace=disabled \
       -Dvulkan-drivers=panfrost -Dgallium-drivers= -Dvulkan-layers= -Dtools= -Dvideo-codecs= \
       -Dxclipse-gralloc-deps="$GRALLOC_DEPS" \
@@ -120,4 +124,4 @@ ninja -C "$BUILD" src/panfrost/vulkan/libvulkan_panfrost.so
 
 mkdir -p dist
 "$BIN/llvm-strip" -o "$BUILD/libvulkan_panfrost.so" "$BUILD/src/panfrost/vulkan/libvulkan_panfrost.so"
-python3 android/package.py "$BUILD/libvulkan_panfrost.so" dist
+MIN_API="${MIN_API:-$API}" python3 android/package.py "$BUILD/libvulkan_panfrost.so" dist

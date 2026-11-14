@@ -78,7 +78,7 @@ def main():
         'packageVersion': count,
         'vendor': 'Mesa',
         'driverVersion': vulkan,
-        'minApi': 31,
+        'minApi': int(os.environ.get('MIN_API', 31)),
         'libraryName': 'libvulkan_panfrost.so',
     }
 
