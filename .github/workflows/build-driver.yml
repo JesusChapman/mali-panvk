@@ -39,6 +39,21 @@ jobs:
           PC_DIR=$(dpkg -L libllvmspirvlib-22-dev | grep 'LLVMSPIRVLib\.pc$' | head -1 | xargs dirname)
           test -n "$PC_DIR" || { echo "LLVMSPIRVLib.pc not found"; exit 1; }
           echo "PKG_CONFIG_PATH=$PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+      - name: Stage host-only SPIRV-Tools
+        run: |
+          # mesa_clc (stage 1, host) links SPIRV-Tools, but the Android build (stage 2) must
+          # not see it: only host-arch static libs exist. Unpack the dev packages under /opt
+          # and expose them to stage 1 only via build.sh (SPIRV_HOST_PREFIX).
+          sudo mkdir -p /opt/spirv && sudo chown "$USER" /opt/spirv
+          cd /tmp && apt-get download spirv-tools-dev spirv-tools-headers
+          for deb in /tmp/spirv-tools-dev_*.deb /tmp/spirv-tools-headers_*.deb; do
+            dpkg-deb -x "$deb" /opt/spirv
+          done
+          PC=$(find /opt/spirv -name SPIRV-Tools.pc | head -1)
+          test -n "$PC" || { echo "SPIRV-Tools.pc missing"; exit 1; }
+          sed -i 's|^prefix=/usr$|prefix=/opt/spirv/usr|' "$PC"
+          grep -q '^prefix=/opt/spirv/usr$' "$PC"
+          echo "SPIRV_HOST_PREFIX=/opt/spirv/usr" >> "$GITHUB_ENV"
       - name: Install NDK r29
         run: |
           curl -sL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r29-linux.zip

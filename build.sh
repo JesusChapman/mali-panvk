@@ -54,6 +54,21 @@ done
 
 # --- stage 1: host tools ----------------------------------------------------------------------
 HOSTB=build-host
+# A host-only SPIRV-Tools (CI stages the dev packages under $SPIRV_HOST_PREFIX): mesa_clc
+# links it, but only host-arch libraries exist, so it stays out of the cross build below.
+OLD_PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
+OLD_CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}"
+if [ -n "${SPIRV_HOST_PREFIX:-}" ]; then
+   SPIRV_PC_DIR="$(find "$SPIRV_HOST_PREFIX" -name SPIRV-Tools.pc -printf '%h' -quit 2>/dev/null)"
+   if [ -n "$SPIRV_PC_DIR" ]; then
+      PKG_CONFIG_PATH="$SPIRV_PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+      export PKG_CONFIG_PATH
+   else
+      echo "warning: no SPIRV-Tools.pc under $SPIRV_HOST_PREFIX" >&2
+   fi
+   CMAKE_PREFIX_PATH="$SPIRV_HOST_PREFIX${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+   export CMAKE_PREFIX_PATH
+fi
 if [ ! -f "$HOSTB/build.ninja" ]; then
    # The SPIR-V translator's .pc file lives next to LLVM, not on pkg-config's default path
    # (MacPorts: /opt/local/libexec/llvm-*/lib/pkgconfig).
@@ -77,6 +92,9 @@ cp "$HOSTB/src/compiler/clc/mesa_clc" "$HOSTB/src/compiler/spirv/vtn_bindgen2" \
    "$HOSTB/src/panfrost/clc/panfrost_compile" "$HOSTB/bin/"
 PATH="$PWD/$HOSTB/bin:$PATH"
 export PATH
+# Back to the ambient paths for the cross build below (see above).
+if [ -z "$OLD_PKG_CONFIG_PATH" ]; then unset PKG_CONFIG_PATH; else PKG_CONFIG_PATH="$OLD_PKG_CONFIG_PATH"; export PKG_CONFIG_PATH; fi
+if [ -z "$OLD_CMAKE_PREFIX_PATH" ]; then unset CMAKE_PREFIX_PATH; else CMAKE_PREFIX_PATH="$OLD_CMAKE_PREFIX_PATH"; export CMAKE_PREFIX_PATH; fi
 
 # --- stage 2: the driver ----------------------------------------------------------------------
 BUILD="${BUILD_DIR:-build-android-$API}"
