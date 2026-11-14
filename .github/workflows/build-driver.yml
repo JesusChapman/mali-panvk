@@ -29,7 +29,7 @@ jobs:
           # the resolver. Noble ships the whole LLVM 22 set these builds need.
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            ninja-build pkg-config glslang-tools spirv-tools spirv-tools-dev spirv-tools-headers python3-pip \
+            ninja-build pkg-config glslang-tools python3-pip \
             clang-22 llvm-22-dev libclang-22-dev libclc-22-dev libllvmspirvlib-22-dev
           pip install --break-system-packages --upgrade 'meson>=1.4.0' mako packaging pyyaml
           for tool in meson ninja python3 pkg-config glslangValidator clang-22; do
