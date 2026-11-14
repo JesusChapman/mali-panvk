@@ -27,7 +27,9 @@ if dep_android_ui.found() and get_option('platform-sdk-version') >= 31
   endif
   options_for_u_gralloc += 'cpp_std=c++17'
   deps_for_u_gralloc += dep_android_ui
-elif dep_android_mapper4.found()
+elif dep_android_mapper4.found() and get_option('platform-sdk-version') >= 31
+  # IMapper 4's metadata goes through AIDL parcelables (AParcel, AStatus helpers), which the
+  # NDK only provides since 31: older targets use the fallback handle readers instead.
   files_u_gralloc += files('u_gralloc_imapper4_api.cpp')
   c_args_for_u_gralloc += '-DUSE_IMAPPER4_METADATA_API'
   cpp_args_for_u_gralloc += '-DUSE_IMAPPER4_METADATA_API'
